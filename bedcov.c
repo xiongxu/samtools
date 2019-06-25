@@ -92,7 +92,7 @@ int main_bedcov(int argc, char *argv[])
     int *n_plp, dret, i, j, m, n, c, min_mapQ = 0, skip_DN = 0;
     int64_t *cnt;
     const bam_pileup1_t **plp;
-	char *reference=NULL;
+    char *reference=NULL;
     int usage = 0, has_index_file = 0,seq_len=0, GCcount=0;
 
     sam_global_args ga = SAM_GLOBAL_ARGS_INIT;
@@ -215,7 +215,7 @@ int main_bedcov(int argc, char *argv[])
                     cnt[i] += n_plp[i] - m;
                 }
             }
-        sprintf(region,"%s:%d-%d",aux[0]->header->target_name[tid],beg,end);
+        sprintf(region,"%s:%d-%d",aux[0]->header->target_name[tid],beg,end-1);
         seq=fai_fetch(fai,region,&seq_len);
         for(i=0,GCcount=0;i<seq_len;++i){
             if (nst_nt4_table[(uint8_t)seq[i]]==1 || nst_nt4_table[(uint8_t)seq[i]]==2) GCcount++;
