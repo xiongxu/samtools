@@ -34,11 +34,31 @@ DEALINGS IN THE SOFTWARE.  */
 #include "htslib/kstring.h"
 #include "htslib/sam.h"
 #include "htslib/thread_pool.h"
+#include "htslib/faidx.h"
 #include "samtools.h"
 #include "sam_opts.h"
 
 #include "htslib/kseq.h"
 KSTREAM_INIT(gzFile, gzread, 16384)
+
+uint8_t nst_nt4_table[256] = {
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 5 /*'-'*/, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 0/*'A'*/, 4, 1/*'C'*/,  4, 4, 4, 2/*'G'*/,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  3/*'T'*/, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 0/*'a'*/, 4, 1/*'c'*/,  4, 4, 4, 2/*'g'*/,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  3/*'t'*/, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+    4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
+};
 
 typedef struct {
     htsFile *fp;
@@ -72,7 +92,8 @@ int main_bedcov(int argc, char *argv[])
     int *n_plp, dret, i, j, m, n, c, min_mapQ = 0, skip_DN = 0;
     int64_t *cnt;
     const bam_pileup1_t **plp;
-    int usage = 0, has_index_file = 0;
+	char *reference=NULL;
+    int usage = 0, has_index_file = 0,seq_len=0, GCcount=0;
 
     sam_global_args ga = SAM_GLOBAL_ARGS_INIT;
     static const struct option lopts[] = {
@@ -80,8 +101,9 @@ int main_bedcov(int argc, char *argv[])
         { NULL, 0, NULL, 0 }
     };
 
-    while ((c = getopt_long(argc, argv, "Q:Xj", lopts, NULL)) >= 0) {
+    while ((c = getopt_long(argc, argv, "Q:R:Xj", lopts, NULL)) >= 0) {
         switch (c) {
+		case 'R': reference = optarg; break;
         case 'Q': min_mapQ = atoi(optarg); break;
         case 'X': has_index_file = 1; break;
         case 'j': skip_DN = 1; break;
@@ -147,6 +169,9 @@ int main_bedcov(int argc, char *argv[])
     ks = ks_init(fp);
     n_plp = calloc(n, sizeof(int));
     plp = calloc(n, sizeof(bam_pileup1_t*));
+
+	char *region=(char *)calloc(64,sizeof(char)),*seq=NULL;
+	faidx_t *fai = fai_load(reference);
     while (ks_getuntil(ks, KS_SEP_LINE, &str, &dret) >= 0) {
         char *p, *q;
         int tid, beg, end, pos;
@@ -189,9 +214,16 @@ int main_bedcov(int argc, char *argv[])
                     cnt[i] += n_plp[i] - m;
                 }
             }
+		sprintf(region,"%s:%d-%d",aux[0]->header->target_name[tid],beg,end);
+		seq=fai_fetch(fai,region,&seq_len);
+		for(i=0,GCcount=0;i<seq_len;++i){
+			if (nst_nt4_table[(uint8_t)seq[i]]==1 || nst_nt4_table[(uint8_t)seq[i]]==2) GCcount++;
+		}
+		free(seq);
         for (i = 0; i < n; ++i) {
-            kputc('\t', &str);
-            kputl(cnt[i], &str);
+            //kputc('\t', &str);
+            //kputl(cnt[i], &str);
+			ksprintf(&str,"\t%f\t%f",1.0*cnt[i]/(end-beg),1.0*GCcount/(end-beg));
         }
         puts(str.s);
         bam_mplp_destroy(mplp);
@@ -203,6 +235,7 @@ bed_error:
     free(n_plp); free(plp);
     ks_destroy(ks);
     gzclose(fp);
+	fai_destroy(fai);
 
     free(cnt);
     for (i = 0; i < n; ++i) {
