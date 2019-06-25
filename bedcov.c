@@ -117,6 +117,7 @@ int main_bedcov(int argc, char *argv[])
         fprintf(stderr, "Usage: samtools bedcov [options] <in.bed> <in1.bam> [...]\n\n");
         fprintf(stderr, "Options:\n");
         fprintf(stderr, "      -Q <int>            mapping quality threshold [0]\n");
+        fprintf(stderr, "   -R <str>            reference fasta file path\n");
         fprintf(stderr, "      -X                  use customized index files\n");
         fprintf(stderr, "      -j                  do not include deletions (D) and ref skips (N) in bedcov computation\n");
         sam_global_opt_help(stderr, "-.--.-");
@@ -214,16 +215,16 @@ int main_bedcov(int argc, char *argv[])
                     cnt[i] += n_plp[i] - m;
                 }
             }
-		sprintf(region,"%s:%d-%d",aux[0]->header->target_name[tid],beg,end);
-		seq=fai_fetch(fai,region,&seq_len);
-		for(i=0,GCcount=0;i<seq_len;++i){
-			if (nst_nt4_table[(uint8_t)seq[i]]==1 || nst_nt4_table[(uint8_t)seq[i]]==2) GCcount++;
-		}
-		free(seq);
+        sprintf(region,"%s:%d-%d",aux[0]->header->target_name[tid],beg,end);
+        seq=fai_fetch(fai,region,&seq_len);
+        for(i=0,GCcount=0;i<seq_len;++i){
+            if (nst_nt4_table[(uint8_t)seq[i]]==1 || nst_nt4_table[(uint8_t)seq[i]]==2) GCcount++;
+        }
+        free(seq);
         for (i = 0; i < n; ++i) {
             //kputc('\t', &str);
             //kputl(cnt[i], &str);
-			ksprintf(&str,"\t%f\t%f",1.0*cnt[i]/(end-beg),1.0*GCcount/(end-beg));
+            ksprintf(&str,"\t%f\t%f",1.0*cnt[i]/(end-beg),1.0*GCcount/(end-beg));
         }
         puts(str.s);
         bam_mplp_destroy(mplp);
